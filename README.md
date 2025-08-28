@@ -23,7 +23,7 @@ Features
 Known issues
 ------------
 
-- Does not apply to background images (not using the <img> tag), such as those
+- Does not apply to background images (not using the _img_ tag), such as those
   in a hero block.
 - Works only with images located in default file directories as defined in 
   Administration > Structure > File types > File settings. For example, it will
