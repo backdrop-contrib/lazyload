@@ -1,0 +1,17 @@
+type = module
+name = LazyLoad
+description = JavaScript plugin that optimizes image loading on a page.
+backdrop = 1.x
+
+; Link to the module's configuration page.
+configure = admin/config/media/lazyload
+
+; Add custom CSS & JS files.
+;stylesheets[all][] = css/lazyload.css
+;scripts[] = js/lazyload.js
+
+; List any dependencies here.
+dependencies[] = image
+
+; Find suggested packages and tags at: https://docs.backdropcms.org/documentation/module-packages-and-tags
+tags[] = Images

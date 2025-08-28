@@ -1,0 +1,27 @@
+/**
+ * @file
+ * Transition animation for Lazy Load module.
+ */
+img.lazyload-item {
+  /*background: url("../loader/spinner.svg") center/100px 100px no-repeat;*/
+  background: url("../loader/spinner.svg") center/120px 120px no-repeat;
+}
+
+/*
+img.lazyload-item {
+  opacity: 0;
+}
+*/
+
+img.lazyload-item.loaded {
+  background: none;
+  /*
+  -webkit-transition:opacity .5s;
+  -moz-transition:opacity .5s;
+  -ms-transition:opacity .5s;
+  -o-transition:opacity .5s;
+  transition:opacity 10s;
+  opacity:1
+  /**/
+}
+

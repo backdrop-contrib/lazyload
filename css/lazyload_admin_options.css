@@ -1,0 +1,10 @@
+/*
+ * Hides 'Label' text in options element of the Lazy Load admin form.
+ */
+#lazyload-path-list thead th{
+  text-indent: -9999px;
+  white-space: nowrap;
+  overflow: hidden;
+  color: transparent;
+}
+
