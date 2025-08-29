@@ -35,7 +35,7 @@ function lazyload_menu() {
 }
 
 /**
- *  Implements hook_library_info().
+ * Implements hook_library_info().
  */
 function lazyload_library_info() {
   $libraries['lazyload'] = array(
@@ -52,13 +52,13 @@ function lazyload_library_info() {
 }
 
 /**
- *  Implements hook_init().
+ * Implements hook_init().
  */
 function lazyload_init() {
   $config = config('lazyload.settings');
 
   // Nothing to do if the js plugin is disabled.
-  if (!empty($config->get('disable_js_plugin'))){
+  if (!empty($config->get('disable_js_plugin'))) {
     return;
   }
 
@@ -92,7 +92,7 @@ function lazyload_init() {
  *   than to file size. When you know the size of a preview style, it is easy
  *   to understand what should be the threshold and vise versa.
  * - It is a rare case when one need to triage files with different file
- *   compression types like jpg along with bmp. Most websites tend to use 
+ *   compression types like jpg along with bmp. Most websites tend to use
  *   formats with strong compression like jpg, webp, png.
  */
 function lazyload_preprocess_image(&$variables) {
@@ -126,7 +126,7 @@ function lazyload_preprocess_image(&$variables) {
     $preview_style_name = $config->get('preview_style');
     if (!empty($preview_style_name)) {
       // Get image filename.
-      $img_file_name = backdrop_basename($path_or_uri); 
+      $img_file_name = backdrop_basename($path_or_uri);
       // Get path to the preview image style.
       $preview_path = image_style_path($preview_style_name, $img_file_name);
       // Check that file exists and use its url as preview image source.
@@ -157,11 +157,11 @@ function lazyload_preprocess_image(&$variables) {
 function lazyload_is_allowed() {
   // Keep result in a static variable so that check is run only once per page
   // request while the result is accessible via subsequent function calls.
-  static $is_allowed = NULL; 
+  static $is_allowed = NULL;
   if (isset($is_allowed)) {
     return $is_allowed;
   }
-  
+
   $config = config('lazyload.settings');
   $current_path = backdrop_get_path_alias();
 
@@ -179,7 +179,7 @@ function lazyload_is_allowed() {
   // Check if current page matches any of the path patterns.
   $match = backdrop_match_path($current_path, $path_patterns);
   // Check the match against the 'Filter rule'.
-  switch($rule) {
+  switch ($rule) {
     case 'exclude':
       $is_allowed = $match ? FALSE : TRUE;
       break;

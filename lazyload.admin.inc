@@ -120,7 +120,7 @@ function lazyload_admin_form($form, &$form_state) {
     '#process' => array('form_options_expand', 'lazyload_form_options_edit'),
     '#attached' => array(
       // Add CSS to hide the misleading 'Label' text in the table header.
-      'css' => array (
+      'css' => array(
         backdrop_get_path('module', 'lazyload') . '/css/lazyload_admin_options.css',
       ),
     ),
@@ -135,12 +135,12 @@ function lazyload_admin_form($form, &$form_state) {
     '#description' => t("Disable Lazy Load on all administrative pages. This filter is independent from the %filter_rule and %page_paths.", array('%filter_rule' => $form['pages']['filter_rule']['#title'], '%page_paths' => $form['pages']['paths']['#title'])),
   );
 
-  $form['advanced'] = array (
+  $form['advanced'] = array(
     '#type' => 'details',
     '#summary' => t('Advanced'),
   );
 
-  $form['advanced']['disable_js_plugin'] = array (
+  $form['advanced']['disable_js_plugin'] = array(
     '#type' => 'checkbox',
     '#title' => t('Disable LazyLoad JavaScript'),
     '#default_value' => $config->get('disable_js_plugin'),
@@ -171,7 +171,7 @@ function lazyload_form_options_edit($element) {
  */
 function lazyload_admin_form_validate($form, &$form_state) {
   // Trim and validate the path patterns.
-  foreach($form_state['values']['paths']['options'] as &$path) {
+  foreach ($form_state['values']['paths']['options'] as &$path) {
     $path = trim($path, " \n\r\t\v\x00\/"); // '\/' added to the default chars.
     if ($path !== '' && !valid_url($path)) {
       form_set_error('paths', t('The path %path is not valid.', array('%path' => $path)));
