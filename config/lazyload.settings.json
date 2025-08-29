@@ -1,13 +1,14 @@
 {
-  "_config_name": "lazyload.settings",
-  "lazy_threshold": "0",
-  "loading_vis": "preview",
-  "img_min_width": "200",
-  "img_min_height": "200",
-  "img_min_pix_count": 40000,
-  "preview_style": "thumbnail",
-  "pages_admin": 1,
-  "pages_filter_rule": "exclude",
-  "pages_paths": ""
+    "_config_name": "lazyload.settings",
+    "lazy_threshold": "0",
+    "loading_vis": "preview",
+    "img_min_width": "200",
+    "img_min_height": "200",
+    "img_min_pix_count": 40000,
+    "preview_style": "thumbnail",
+    "pages_no_admin": 1,
+    "pages_filter_rule": "exclude",
+    "pages_paths": "",
+    "disable_js_plugin": 0
 }
 

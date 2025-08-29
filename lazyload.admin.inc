@@ -10,7 +10,12 @@
 function lazyload_admin_form($form, &$form_state) {
   $config = config('lazyload.settings');
 
-  $form['lazy_threshold'] = array(
+  $form['lazy'] = array(
+    '#type' => 'details',
+    '#summary' => t('Lazy loading'),
+  );
+
+  $form['lazy']['lazy_threshold'] = array(
     '#type' => 'number',
     '#title' => t('Offset'),
     '#description' => t("The offset controls how early you want the elements to be loaded before they are visible. For example, value 100 means 100px before an element enters a browser viewport it will start loading. Zero value means only images that are inside visible page area will be loaded."),
@@ -22,21 +27,21 @@ function lazyload_admin_form($form, &$form_state) {
 
   // Title and description are made as markup elements. This is needed for
   // pretty looking inline placement of the two 'number' fields below.
-  $form['img_min_title'] = array(
+  $form['lazy']['img_min_title'] = array(
     '#prefix' => '<label style="margin-bottom: 6px">',
     '#markup' => t('Minimum image size'),
     '#suffix' => '</label>',
   );
 
   // Container for inline placement of the next two fields.
-  $form['img_min'] = array(
+  $form['lazy']['img_min'] = array(
     '#type' => 'container',
     '#attributes' => array(
       'class' => array('container-inline'),
     ),
   );
 
-  $form['img_min']['width'] = array(
+  $form['lazy']['img_min']['width'] = array(
     '#type' => 'number',
     '#default_value' => $config->get('img_min_width'),
     '#min' => 0,
@@ -44,7 +49,7 @@ function lazyload_admin_form($form, &$form_state) {
     '#field_suffix' => t('x'),
   );
 
-  $form['img_min']['height'] = array(
+  $form['lazy']['img_min']['height'] = array(
     '#type' => 'number',
     '#default_value' => $config->get('img_min_height'),
     '#min' => 0,
@@ -52,13 +57,13 @@ function lazyload_admin_form($form, &$form_state) {
     '#field_suffix' => t('pix'),
   );
 
-  $form['img_min_descr'] = array(
+  $form['lazy']['img_min_descr'] = array(
     '#prefix' => '<div class="description">',
-    '#markup' => t('Defines the minimum size of images that Lazy Load will process. Images smaller than this threshold are ignored. The size is measured as total pixels (width × height), not by width or height alone. That means, for example, both a 100×100 image and a 50×200 image equal 10,000 pixels and are treated the same. The width and height should be set larger than the size of the <em>Low-resolution preview image</em>, otherwise, the module will have no practical effect.'),
+    '#markup' => t('Defines the minimum size of images that Lazy Load will process. Images smaller than this threshold are ignored. The size is measured as total pixels (width × height), not by width or height alone. That means, for example, both a 100×100 image and a 50×200 image equal 10,000 pixels and are treated the same. It makes sense to set minimum width and height larger than the size of the <em>Low-resolution preview image</em>. If <a href="@link" target="_blank">Thumbnail (100x100)</a> is set for a preview, then 150x150 and higher can be recommended for the minimum size.', array('@link' => url('admin/config/media/image-styles/configure/thumbnail'))),
     '#suffix' => '</div>',
   );
 
-  $form['loading_vis'] = array(
+  $form['lazy']['loading_vis'] = array(
     '#type' => 'select',
     '#title' => t('Display while image is being loaded'),
     '#options' => array(
@@ -73,12 +78,12 @@ function lazyload_admin_form($form, &$form_state) {
     ),
   );
 
-  $form['preview_style'] = array(
+  $form['lazy']['preview_style'] = array(
     '#type' => 'select',
     '#title' => t('Preview image style'),
     '#options' => image_style_options(FALSE, PASS_THROUGH),
     '#default_value' => $config->get('preview_style'),
-    '#description' => t('Select style for smaller version of the main image that will be displayed as a preview. The style should keep the proportions of the main image. To create new style or edit existing one, go to <a href="@link" target="_blank">image styles configuration</a> page.', array('@link' => url('admin/config/media/image-styles'))),
+    '#description' => t('Select the style for the smaller version of the main image that will be displayed as a preview. The style should keep the proportions of the main image. To create a new style or edit an existing one, go to <a href="@link" target="_blank">image styles configuration</a> page.', array('@link' => url('admin/config/media/image-styles'))),
     '#states' => array(
       'visible' => array(
         ':input[name="loading_vis"]' => array('value' => 'preview'),
@@ -87,10 +92,8 @@ function lazyload_admin_form($form, &$form_state) {
   );
 
   $form['pages'] = array(
-    '#type' => 'fieldset',
-    '#title' => t('Page filter'),
-    '#collapsible' => TRUE,
-    '#collapsed' => TRUE,
+    '#type' => 'details',
+    '#summary' => t('Page filter'),
   );
 
   $form['pages']['filter_rule'] = array(
@@ -125,11 +128,23 @@ function lazyload_admin_form($form, &$form_state) {
     '#description' => t('List of website page paths where the module will be enabled or disabled depending on the previously selected %filter_rule. You can use the wildcard(*) as a placeholder for any part of the path.', array('%filter_rule' => $form['pages']['filter_rule']['#title'])),
   );
 
-  $form['pages']['admin'] = array(
+  $form['pages']['no_admin'] = array(
     '#type' => 'checkbox',
     '#title' => t('Exclude administrative pages'),
-    '#default_value' => $config->get('pages_admin'),
+    '#default_value' => $config->get('pages_no_admin'),
     '#description' => t("Disable Lazy Load on all administrative pages. This filter is independent from the %filter_rule and %page_paths.", array('%filter_rule' => $form['pages']['filter_rule']['#title'], '%page_paths' => $form['pages']['paths']['#title'])),
+  );
+
+  $form['advanced'] = array (
+    '#type' => 'details',
+    '#summary' => t('Advanced'),
+  );
+
+  $form['advanced']['disable_js_plugin'] = array (
+    '#type' => 'checkbox',
+    '#title' => t('Disable LazyLoad JavaScript'),
+    '#default_value' => $config->get('disable_js_plugin'),
+    '#description' => t('When enabled, the Lazy Load script will not run. This option is for testing only. The module will still modify the <em>img</em> tag HTML and display the preview image instead of the original, but it will not swap the preview once the original has been loaded. This is useful for checking which images are affected by the module.'),
   );
 
   // Submit button.
@@ -139,7 +154,6 @@ function lazyload_admin_form($form, &$form_state) {
     '#value' => t('Save configuration'),
   );
 
-  //return system_settings_form($form);
   return $form;
 }
 
@@ -156,10 +170,12 @@ function lazyload_form_options_edit($element) {
  * Validation function for Lazy Load admin form.
  */
 function lazyload_admin_form_validate($form, &$form_state) {
-  // Trim, sanitize and validate the path patterns.
+  // Trim and validate the path patterns.
   foreach($form_state['values']['paths']['options'] as &$path) {
-    // Slashes added to the default trim chars.
-    $path = trim($path, " \n\r\t\v\x00\/"); 
+    $path = trim($path, " \n\r\t\v\x00\/"); // '\/' added to the default chars.
+    if ($path !== '' && !valid_url($path)) {
+      form_set_error('paths', t('The path %path is not valid.', array('%path' => $path)));
+    }
   }
   unset($path);
 }
@@ -172,7 +188,7 @@ function lazyload_admin_form_submit($form, &$form_state) {
 
   $config->set('lazy_threshold', $form_state['values']['lazy_threshold']);
 
-  // Save precalculated pixel count along with min width and height.
+  // Save pre calculated pixel count along with min width and height.
   // The pixel count is not exposed to the user but is used internally.
   $img_min_width  = $form_state['values']['width'];
   $img_min_height = $form_state['values']['height'];
@@ -184,14 +200,14 @@ function lazyload_admin_form_submit($form, &$form_state) {
   $config->set('preview_style', $form_state['values']['preview_style']);
 
   $config->set('pages_filter_rule', $form_state['values']['filter_rule']);
-  $config->set('pages_admin', $form_state['values']['admin']);
+  $config->set('pages_no_admin', $form_state['values']['no_admin']);
   // Save paths as a single string compatible with backdrop_match_path().
   // backdrop_match_path() takes path patterns as one string where each pattern
   // is separated with \n or \r symbols.
   $path_patterns = implode("\n", $form_state['values']['paths']['options']);
   $config->set('pages_paths', $path_patterns);
 
-  //backdrop_set_message('<pre>' . print_r($form_state['values']['paths'], TRUE) . '</pre>', 'info');
+  $config->set('disable_js_plugin', $form_state['values']['disable_js_plugin']);
 
   $config->save();
   backdrop_set_message(t('The configuration options have been saved.'));
