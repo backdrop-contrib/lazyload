@@ -1,6 +1,6 @@
 type = module
 name = Lazy Load
-description = JavaScript plugin that optimizes image loading.
+description = JavaScript plugin that optimizes image loading on a page.
 backdrop = 1.x
 
 configure = admin/config/media/lazyload
