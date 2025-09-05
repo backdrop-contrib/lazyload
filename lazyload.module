@@ -1,7 +1,9 @@
 <?php
 /**
  * @file
- * A short description of this module.
+ * Lazy Load module improves image loading performance by delaying the loading
+ * of images outside the viewport and by temporarily showing lightweight
+ * versions of large images while they are being fetched.
  */
 
 /**
@@ -33,7 +35,7 @@ function lazyload_menu() {
 }
 
 /**
- *  Implements hook_library_info().
+ * Implements hook_library_info().
  */
 function lazyload_library_info() {
   $libraries['lazyload'] = array(
@@ -50,9 +52,16 @@ function lazyload_library_info() {
 }
 
 /**
- *  Implements hook_init().
+ * Implements hook_init().
  */
 function lazyload_init() {
+  $config = config('lazyload.settings');
+
+  // Nothing to do if the js plugin is disabled.
+  if (!empty($config->get('disable_js_plugin'))) {
+    return;
+  }
+
   // Nothing to do if page is blacklisted.
   if (!lazyload_is_allowed()) return;
 
@@ -60,11 +69,9 @@ function lazyload_init() {
   $module_dir = backdrop_get_path('module', 'lazyload');
 
   backdrop_add_library('lazyload', 'lazyload', TRUE);
-  $config = config('lazyload.settings');
 
   $js_settings['lazyload'] = array(
     'threshold' => $config->get('lazy_threshold'),
-    //'loader' => $loader,
   );
   backdrop_add_js($js_settings, 'setting');
   backdrop_add_js($module_dir . '/js/lazyload.js', array('scope' => 'footer', 'weight' => 999));
@@ -77,23 +84,20 @@ function lazyload_init() {
  * image url to the data-src attribute so that lazyload js plugin could process
  * the image. Only images that are above pixel count threshold are processed.
  *
- * Why pixel count and not image filesize?
+ * Why pixel count is used for the threshold and not image filesize?
  * - Width, height are almost always available in $variables unlike filesize.
  * - Multiplication width*height is faster than checking file size (and file
- *   existence) directly when filesize is not in variables.
+ *   existence) directly when filesize is not present in variables.
  * - From user point of view it is easier to refer to 'image size'/'image style'
- *   than to file size.
+ *   than to file size. When you know the size of a preview style, it is easy
+ *   to understand what should be the threshold and vise versa.
  * - It is a rare case when one need to triage files with different file
- *   compression types like jpg along with bmp. Most websites tend to use 
+ *   compression types like jpg along with bmp. Most websites tend to use
  *   formats with strong compression like jpg, webp, png.
  */
 function lazyload_preprocess_image(&$variables) {
   // Nothing to do if page is blacklisted.
   if (!lazyload_is_allowed()) return;
-
-  $debug_text = "****** Lazyload image call *******:\n";
-  //$debug_text .= print_r($variables, TRUE);
-  $debug_text .= "Uri: {$variables['uri']}\nPath: {$variables['path']}\n";
 
   $config = config('lazyload.settings');
 
@@ -106,42 +110,33 @@ function lazyload_preprocess_image(&$variables) {
   }
   else {
     // Ignore the image if we can't get width or height.
-    $debug_text .= "Image dimensions were not found.\n";
-    $debug_text .= "{$path_or_uri}\n";
-    backdrop_set_message("<pre>{$debug_text}</pre>", 'warning');
     return;
   }
 
   // Ignore image if it is below the pixel count threshold.
   if ($img_pixel_count < $config->get('img_min_pix_count')) {
-    $debug_text .= "Image({$variables['width']}x{$variables['height']}) is below the threshold and will not be processed. Exiting!\n";
-    $debug_text .= "{$path_or_uri}\n";
-    backdrop_set_message("<pre>{$debug_text}</pre>", 'warning');
     return;
   }
 
+  // By default set blank transparent 1x1 px image as the preview.
   $preview_img = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
-  //$preview_img = backdrop_get_path('module', 'lazyload') . '/loader/spinner.svg';
 
   // If defined in config, get style url of the preview image.
   if ($config->get('loading_vis') === 'preview') {
     $preview_style_name = $config->get('preview_style');
     if (!empty($preview_style_name)) {
       // Get image filename.
-      $img_file_name = backdrop_basename($path_or_uri); 
+      $img_file_name = backdrop_basename($path_or_uri);
       // Get path to the preview image style.
       $preview_path = image_style_path($preview_style_name, $img_file_name);
       // Check that file exists and use its url as preview image source.
       if (_image_source_image_exists($preview_path)) {
-        $debug_text .= "File exists! {$preview_path}\n";
         $preview_img = image_style_url($preview_style_name, $img_file_name);
       }
       else {
         // If preview image doesn't exist try to generate it.
-        $debug_text .= "File does NOT exist! {$preview_path}\n";
         $preview_style = image_style_load($preview_style_name); // Get the style data.
         $preview_img_created = image_style_create_derivative($preview_style, $path_or_uri, $preview_path);
-        $debug_text .= $preview_img_created ? "Image style file created\n" : "Failed to create image style file.\n";
         // If succeeded assign the image url as preview image source.
         if ($preview_img_created) {
           $preview_img = image_style_url($preview_style_name, $img_file_name);
@@ -154,9 +149,6 @@ function lazyload_preprocess_image(&$variables) {
   $variables['attributes']['src'] = $preview_img;
   $variables['attributes']['data-lazyload-src'] = file_create_url($path_or_uri);
   $variables['attributes']['class'][] = 'lazyload-item';
-
-  $debug_text .= "Preview src:  {$variables['attributes']['src']}\n";
-  backdrop_set_message("<pre>{$debug_text}</pre>", 'info');
 }
 
 /**
@@ -165,19 +157,17 @@ function lazyload_preprocess_image(&$variables) {
 function lazyload_is_allowed() {
   // Keep result in a static variable so that check is run only once per page
   // request while the result is accessible via subsequent function calls.
-  static $is_allowed = NULL; 
+  static $is_allowed = NULL;
   if (isset($is_allowed)) {
     return $is_allowed;
   }
-  
+
   $config = config('lazyload.settings');
-  $current_path = backdrop_get_path_alias(); //current_path()
+  $current_path = backdrop_get_path_alias();
 
   // Apply administrative pages filter if enabled.
-  if (!empty($config->get('pages_admin'))) {
-    //$admin_path_patterns = path_get_admin_paths()['admin'];
+  if (!empty($config->get('pages_no_admin'))) {
     if (path_is_admin($current_path)) {
-      backdrop_set_message("Admin page {$current_path} NOT allowed!", 'info');
       $is_allowed = FALSE;
       return $is_allowed;
     }
@@ -188,19 +178,14 @@ function lazyload_is_allowed() {
   $rule  = $config->get('pages_filter_rule');
   // Check if current page matches any of the path patterns.
   $match = backdrop_match_path($current_path, $path_patterns);
-  if ($match) {
-    backdrop_set_message("Rule: {$rule}.\nCurrent page matches: \n<pre>{$path_patterns}</pre>\n", 'info');
-  }
-
   // Check the match against the 'Filter rule'.
-  switch($rule) {
+  switch ($rule) {
     case 'exclude':
       $is_allowed = $match ? FALSE : TRUE;
       break;
     case 'include':
       $is_allowed = $match ? TRUE : FALSE;
   }
-  $allow_text = $is_allowed ? 'Is allowed!' : 'Is NOT allowed!';
-  backdrop_set_message("Page: {$current_path}. {$allow_text}\n", 'info');
   return $is_allowed;
 }
+
