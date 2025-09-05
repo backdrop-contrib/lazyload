@@ -10,7 +10,7 @@
 function lazyload_admin_form($form, &$form_state) {
   $config = config('lazyload.settings');
 
-  // Get this values in advanced so that the names could be 
+  // Get this values in advanced so that the names could be
   // used in the field descriptions.
   $image_styles = image_style_options(FALSE, PASS_THROUGH);
   $preview_title = t('Preview image style');

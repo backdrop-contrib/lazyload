@@ -17,7 +17,7 @@ Features
 - Displays a smaller version of an image until the full-size version has
   finished loading.
 - Allows restricting the module’s behavior to specific pages.
-- Allows restricting the module’s behavior to images above a minimum size.
+- Allows restricting the module’s behavior to images above a minimum file size.
 - Optionally can show a blank image instead of a small preview image.
 
 Known issues
@@ -25,11 +25,8 @@ Known issues
 
 - Does not apply to background images (not using the _img_ tag), such as those
   in a hero block.
-- Works only with images located in default file directories as defined in 
-  Administration > Structure > File types > File settings. For example, it will
-  not apply to images from _/core_ or _/themes_.
-- In rare cases, when image field does not have width and height properties,
-  the module will skip such an image.
+- May not work with images located outside the default public file directory as
+  defined in Administration > Structure > File types > File settings. 
 
 Installation
 ------------
