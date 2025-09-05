@@ -65,7 +65,7 @@ function lazyload_init() {
   // Nothing to do if page is blacklisted.
   if (!lazyload_is_allowed()) return;
 
-  // Get module's directory.
+  // Get the module's directory.
   $module_dir = backdrop_get_path('module', 'lazyload');
 
   backdrop_add_library('lazyload', 'lazyload', TRUE);
@@ -75,95 +75,242 @@ function lazyload_init() {
   );
   backdrop_add_js($js_settings, 'setting');
   backdrop_add_js($module_dir . '/js/lazyload.js', array('scope' => 'footer', 'weight' => 999));
+
+}
+
+/**
+ * Changes <img> tag in text fields so they could be lazy loaded.
+ */
+function lazyload_preprocess_field(&$variables, $hook) {
+  // Check if inline image tag processing is enabled.
+  if (!config_get('lazyload.settings', 'enable_inline')) {
+    return;
+  }
+
+  if (empty($variables['element']['#field_type'])) {
+    backdrop_set_message('#field_type not found. Abort.', 'warning');
+    return;
+  }
+  // Check if the field type is one of the text kinds. 
+  switch ($variables['element']['#field_type']) {
+    case 'text':
+    case 'text_long':
+    case 'text_with_summary':
+      // Move on to the rest of the code if field is a text.
+      backdrop_set_message("Field type: {$variables['element']['#field_type']}", 'warning');
+      break;
+    default:
+      // Return in other cases.
+      backdrop_set_message("Wrong field type: {$variables['element']['#field_type']}. Abort.", 'warning');
+      return;
+  }
+  // Regex to find <img> tag and capture 'src' value.
+  $pattern = '#<img\b[^>]*\ssrc\s*=\s*["\'](.*?)["\'][^>]*>#';
+  foreach ($variables['items'] as &$item) {
+    if (!empty($item['#markup'])) {
+      $item['#markup'] = preg_replace_callback($pattern, 'lazyload_img_tag_replace', $item['#markup'], -1, $cnt);
+      if ($cnt === 0) {
+        backdrop_set_message("No change: <pre>" . print_r($item['#markup'], TRUE) . '</pre>', 'warning');
+      }
+    }
+    else {
+      backdrop_set_message('The item has no #markup.', 'warning');
+      //backdrop_set_message("Hook: {$hook}\n<pre>" . print_r($variables['items'], TRUE) . '</pre>', 'info');
+    }
+  }
+}
+
+/**
+ * Replaces <img> tag 'src' value to the preview image URL and applies original
+ * 'src' to 'data-lazyload-src'. This function is used as a callback for
+ * preg_callback_replace() with regular expression that captures 'src' value.
+ */
+function lazyload_img_tag_replace($matches) {
+  backdrop_set_message("Matches: \n<pre>" . print_r($matches, TRUE) . '</pre>', 'warning');
+  $img_tag = $matches[0];
+  $img_src = $matches[1];
+  $preview_src = lazyload_get_preview_url($img_src);
+  if ($preview_src !== FALSE) {
+    $img_tag = str_replace('src="' . $img_src . '"', 'src="' . $preview_src . '"', $img_tag);
+    $img_tag = rtrim($img_tag, '>') . ' data-lazyload-src="' . $img_src . '">';
+  }
+  return $img_tag;
 }
 
 /**
  * Implements template_preprocess_image()
  *
  * Makes src attribute point to a preview or blank image and assigns the actual
- * image url to the data-src attribute so that lazyload js plugin could process
- * the image. Only images that are above pixel count threshold are processed.
- *
- * Why pixel count is used for the threshold and not image filesize?
- * - Width, height are almost always available in $variables unlike filesize.
- * - Multiplication width*height is faster than checking file size (and file
- *   existence) directly when filesize is not present in variables.
- * - From user point of view it is easier to refer to 'image size'/'image style'
- *   than to file size. When you know the size of a preview style, it is easy
- *   to understand what should be the threshold and vise versa.
- * - It is a rare case when one need to triage files with different file
- *   compression types like jpg along with bmp. Most websites tend to use
- *   formats with strong compression like jpg, webp, png.
+ * image URL to the data-src attribute so that lazyload js plugin could process
+ * the image. Only images that are above file size threshold are processed.
  */
 function lazyload_preprocess_image(&$variables) {
   // Nothing to do if page is blacklisted.
   if (!lazyload_is_allowed()) return;
 
-  $config = config('lazyload.settings');
+  //backdrop_set_message('Variables:<pre>' . print_r($variables, TRUE) . '</pre>', 'info');
+  backdrop_set_message('--------------------------------------------------------------', 'info');
 
   // Get either path or uri from the variables.
   $path_or_uri = $variables['uri'] ? $variables['uri'] : $variables['path'];
 
-  // Get image pixel count as width x height multiplication.
-  if (isset($variables['width']) && isset($variables['height'])) {
-    $img_pixel_count = $variables['width'] * $variables['height'];
+  // Try to get preview image url.
+  $img_preview_url = lazyload_get_preview_url($path_or_uri);
+  if ($img_preview_url !== FALSE) {
+    // Assign preiew image to src attribute and main image to lazyload-src.
+    // Lazyload js plugin will assign main image to src one it is done loading.
+    $variables['attributes']['src'] = $img_preview_url;
+    $variables['attributes']['data-lazyload-src'] = file_create_url($path_or_uri);
+    $variables['attributes']['class'][] = 'lazyload-item';
   }
-  else {
-    // Ignore the image if we can't get width or height.
-    return;
+}
+
+/**
+ * Returns URL of the preview image derived from the main image.
+ * Checks file size limit and generates preview style image if needed.
+ * Contains important logic that sets img tag for lazy loading.
+ */
+function lazyload_get_preview_url($img_uri) {
+  backdrop_set_message("Incoming URI: {$img_uri}\n", 'info');
+
+  $img_path = ''; // Path to image in the src of the <img> tag.
+  $img_orig_path = ''; // Path to image without style applied (original).
+  $img_preview_path = ''; // Path to the preview image style.
+
+  // Make sure there is no slash at the beginning of the URI.
+  $img_uri = ltrim($img_uri,  "\n\r\t\v\x00/\\");
+
+  // Get path to public file storage.
+  $public_path = config_get('system.core', 'file_public_path');
+  
+  // Potentially there could be various types of URI as an input, so convert
+  // it to either {scheme}://{local path} or just {local path} format so that
+  // image_style_path() and image_style_url() could correctly process them.
+  $scheme = file_uri_scheme($img_uri);
+  switch ($scheme) {
+    case 'http':    // Full URL.
+    case 'https':
+      // Get local path from the URI and trim the slash at the beginning.
+      $img_path = parse_url($img_uri, PHP_URL_PATH);
+      $img_path = ltrim($img_path, '/\\');
+      // If starts with public path then replace it with 'public' scheme.
+      // That way it will be correctly processed by image_style_path() and
+      // image_style_url() functions.
+      if (str_starts_with($img_path, $public_path)) {
+        $img_path = substr($img_path, strlen($public_path) + 1);
+        $img_path = 'public://' . $img_path;
+      }
+      backdrop_set_message("Path is from full url({$scheme}): {$img_path}\n", 'info');
+      break;
+    case '':    // URI without a scheme.
+      // Check if file starts with public path and replace it with public scheme.
+      if (str_starts_with($img_uri, $public_path)) {
+        $img_path = 'public://' . substr($img_uri, strlen($public_path) + 1); // +1 to remove slash.
+        backdrop_set_message("No scheme, public path: {$img_path}\n", 'info');
+      }
+      else {
+        // Keep files from outside the 'public' scheme as is. In many cases
+        // it is still possible to get preview work for them.
+        $img_path = $img_uri;
+        backdrop_set_message("No scheme, take as is: {$img_path}\n", 'info');
+      }
+      break;
+    default:    // URI with a scheme.
+      $img_path = $img_uri;    // Take URI as is.
+      backdrop_set_message("Scheme as is: {$img_path}\n", 'info');
+      break;
+  }
+  
+  // Try to get image file size.
+  // Here ALL ERRORS ARE SUPPRESSED to avoid warnings when file does not exist.
+  // If something does not work right then the '@' must be removed for debugging!
+  $file_size = @filesize($img_path); 
+  // Skip the file if it's size can not be read or zero.
+  if ($file_size == FALSE) {
+    backdrop_set_message("File does NOT exist: {$img_path}", 'info');
+    return FALSE;
+  }
+  backdrop_set_message("File EXIST. Size: {$file_size}", 'info');
+  
+  // From this point the module's settings are needed.
+  $config = config('lazyload.settings');
+
+  // Check if file size is above the size threshold.
+  $min_file_size = $config->get('img_min_file_size');
+  if ($file_size < $min_file_size) {
+    backdrop_set_message("ABORT. File is below threshold({$min_file_size}).", 'info');
+    return FALSE;
   }
 
-  // Ignore image if it is below the pixel count threshold.
-  if ($img_pixel_count < $config->get('img_min_pix_count')) {
-    return;
-  }
+  // By default set the preview URL to be a blank 1x1 pix image. 
+  $img_preview_url = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 
-  // By default set blank transparent 1x1 px image as the preview.
-  $preview_img = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
-
-  // If defined in config, get style url of the preview image.
+  // Check if lazy load is set to use the preview image.
   if ($config->get('loading_vis') === 'preview') {
+    // Get preview style name.
     $preview_style_name = $config->get('preview_style');
     if (!empty($preview_style_name)) {
-      // Get image filename.
-      $img_file_name = backdrop_basename($path_or_uri);
-      // Get path to the preview image style.
-      $preview_path = image_style_path($preview_style_name, $img_file_name);
-      // Check that file exists and use its url as preview image source.
-      if (_image_source_image_exists($preview_path)) {
-        $preview_img = image_style_url($preview_style_name, $img_file_name);
+      // Check if the image path points at the original image or the one with a
+      // style applied. In case there is a need to create a derivative image,
+      // that image should be based on the original.
+      $pattern = '#^public://styles/([^/]+)/([^/]+)/(.*)$#';
+      if (preg_match($pattern, $img_path, $matches)) {
+        // $matches[1] — style name of the image.
+        // $matches[2] — scheme.
+        // $matches[3] — path to file without style and scheme directories.
+        $img_orig_path = "public://{$matches[3]}";
+        $img_preview_path = "public://styles/{$preview_style_name}/{$matches[2]}/{$matches[3]}";
+      } 
+      else {
+        // Image path points to original so get the preview image path as usual.
+        $img_orig_path = $img_path;
+        $img_preview_path = image_style_path($preview_style_name, $img_orig_path);
+      }
+      backdrop_set_message('Matches: <pre>' . print_r($matches, TRUE) . '</pre>', 'info');
+      backdrop_set_message("Original image path: {$img_orig_path}", 'info');
+      backdrop_set_message("Preview image path: {$img_preview_path}", 'info');
+
+      // Check that preview image file exists and get it's URL.
+      if (_image_source_image_exists($img_preview_path)) {
+        $img_preview_url = image_style_url($preview_style_name, $img_orig_path);
+        backdrop_set_message("Preview image EXIST.", 'info');
       }
       else {
         // If preview image doesn't exist try to generate it.
         $preview_style = image_style_load($preview_style_name); // Get the style data.
-        $preview_img_created = image_style_create_derivative($preview_style, $path_or_uri, $preview_path);
-        // If succeeded assign the image url as preview image source.
-        if ($preview_img_created) {
-          $preview_img = image_style_url($preview_style_name, $img_file_name);
+        // The style could be deleted so check that we have it.
+        if (!empty($preview_style)) {
+          // Try to create an image in the 'preview' style.
+          $preview_img_created = image_style_create_derivative($preview_style, $img_orig_path, $img_preview_path);
+          // If succeeded get the preview image URL.
+          if ($preview_img_created) {
+            backdrop_set_message("Preview image CREATED!", 'info');
+            $img_preview_url = image_style_url($preview_style_name, $img_orig_path);
+          }
+        }
+        else {
+          backdrop_set_message("Failed to load image style: {$preview_style_name}", 'info');
         }
       }
     }
   }
-  // Assign preiew image to src attribute and main image to lazyload-src.
-  // Lazyload js plugin will assign main image to src one it is done loading.
-  $variables['attributes']['src'] = $preview_img;
-  $variables['attributes']['data-lazyload-src'] = file_create_url($path_or_uri);
-  $variables['attributes']['class'][] = 'lazyload-item';
+  backdrop_set_message("Preview image URL: {$img_preview_url}", 'info');
+  return $img_preview_url;
 }
 
 /**
  *  Checks if Lazy Load is allowed to run on current page.
  */
 function lazyload_is_allowed() {
-  // Keep result in a static variable so that check is run only once per page
-  // request while the result is accessible via subsequent function calls.
+  // Keep result in a static variable so that check is performed only once per
+  // page request while the result is accessible via subsequent function calls.
   static $is_allowed = NULL;
   if (isset($is_allowed)) {
     return $is_allowed;
   }
 
-  $config = config('lazyload.settings');
   $current_path = backdrop_get_path_alias();
+  $config = config('lazyload.settings');
 
   // Apply administrative pages filter if enabled.
   if (!empty($config->get('pages_no_admin'))) {
