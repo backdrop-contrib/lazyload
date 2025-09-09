@@ -228,9 +228,9 @@ function lazyload_get_preview_url($img_uri) {
       break;
   }
 
-  // Try to get image file size.
+  // Try to get the image file size.
   // Here ALL ERRORS ARE SUPPRESSED to avoid warnings when file does not exist.
-  // If something does not work right then the '@' must be removed for debugging!
+  // If something does not work right then the '@' MUST BE REMOVED FOR DEBUGGING!
   $file_size = @filesize($img_path);
   // Skip the file if it's size can not be read or zero.
   if ($file_size == FALSE) {
@@ -240,7 +240,7 @@ function lazyload_get_preview_url($img_uri) {
   // From this point the module's settings are needed.
   $config = config('lazyload.settings');
 
-  // Check if file size is above the size threshold.
+  // Check if the file size is above the threshold.
   $min_file_size = $config->get('img_min_file_size');
   if ($file_size < $min_file_size) {
     return FALSE;
@@ -249,7 +249,7 @@ function lazyload_get_preview_url($img_uri) {
   // By default set the preview URL to be a blank 1x1 pix image.
   $img_preview_url = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 
-  // Check if lazy load is set to use the preview image.
+  // Check if Lazy load is set to use the preview image.
   if ($config->get('loading_vis') === 'preview') {
     // Get preview style name.
     $preview_style_name = $config->get('preview_style');
@@ -261,12 +261,12 @@ function lazyload_get_preview_url($img_uri) {
       if (preg_match($pattern, $img_path, $matches)) {
         // $matches[1] — style name of the image.
         // $matches[2] — scheme.
-        // $matches[3] — path to file without style and scheme directories.
+        // $matches[3] — path to the file without style and scheme directories.
         $img_orig_path = "public://{$matches[3]}";
         $img_preview_path = "public://styles/{$preview_style_name}/{$matches[2]}/{$matches[3]}";
       }
       else {
-        // Image path points to original so get the preview image path as usual.
+        // Image path points to the original so get the preview image path as usual.
         $img_orig_path = $img_path;
         $img_preview_path = image_style_path($preview_style_name, $img_orig_path);
       }
@@ -275,9 +275,9 @@ function lazyload_get_preview_url($img_uri) {
         $img_preview_url = image_style_url($preview_style_name, $img_orig_path);
       }
       else {
-        // If preview image doesn't exist try to generate it.
+        // If the preview image doesn't exist try to generate it.
         $preview_style = image_style_load($preview_style_name); // Get the style data.
-        // The style could be deleted so check that we have it.
+        // The style may not yet be created so check that we have it.
         if (!empty($preview_style)) {
           // Try to create an image in the 'preview' style.
           $preview_img_created = image_style_create_derivative($preview_style, $img_orig_path, $img_preview_path);
