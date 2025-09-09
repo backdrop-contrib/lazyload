@@ -53,6 +53,9 @@ function lazyload_library_info() {
 
 /**
  * Implements hook_init().
+ *
+ * Checks that the page is not blacklisted by the Page filter and
+ * loads the Lazyload library and behavior script accordingly.
  */
 function lazyload_init() {
   $config = config('lazyload.settings');
@@ -61,7 +64,6 @@ function lazyload_init() {
   if (!empty($config->get('disable_js_plugin'))) {
     return;
   }
-
   // Nothing to do if page is blacklisted.
   if (!lazyload_is_allowed()) return;
 
@@ -78,6 +80,8 @@ function lazyload_init() {
 }
 
 /**
+ * Implements template_preprocess_field().
+ *
  * Changes <img> tag in text fields so they could be lazy loaded.
  */
 function lazyload_preprocess_field(&$variables, $hook) {
@@ -100,28 +104,51 @@ function lazyload_preprocess_field(&$variables, $hook) {
       // Return in other cases.
       return;
   }
-  // Use regex to find <img> tag and capture 'src' value.
-  $pattern = '#<img\b[^>]*\ssrc\s*=\s*["\'](.*?)["\'][^>]*>#';
+  // Regular expression that captures entire <img> tag.
+  $reg_get_img = '#<img\b.*?>#';
   foreach ($variables['items'] as &$item) {
     if (!empty($item['#markup'])) {
-      // Replace <img> tag src if found.
-      $item['#markup'] = preg_replace_callback($pattern, 'lazyload_img_tag_replace', $item['#markup'], -1, $cnt);
+      // Replace <img> tag src and class.
+      $item['#markup'] = preg_replace_callback($reg_get_img, 'lazyload_img_tag_replace', $item['#markup']);
     }
   }
 }
 
 /**
  * Replaces <img> tag 'src' value to the preview image URL and applies original
- * 'src' to 'data-lazyload-src'. This function is used as a callback for
- * preg_callback_replace() with regular expression that captures 'src' value.
+ * 'src' to 'data-lazyload-src'. Also adds 'lazyload-item' class so that the tag
+ * is recognized by the Lazy Load plugin. This function is used as a callback for
+ * preg_callback_replace() with regular expression that captures <img> value.
  */
 function lazyload_img_tag_replace($matches) {
   $img_tag = $matches[0];
-  $img_src = $matches[1];
-  $preview_src = lazyload_get_preview_url($img_src);
-  if ($preview_src !== FALSE) {
-    $img_tag = str_replace('src="' . $img_src . '"', 'src="' . $preview_src . '"', $img_tag);
-    $img_tag = rtrim($img_tag, '>') . ' data-lazyload-src="' . $img_src . '">';
+  // Regexp pattern that grabs value of src attribute.
+  $reg_get_src = '#\bsrc\s*=\s*["\']([^"\']+)["\']#';
+  if (preg_match($reg_get_src, $img_tag, $src_match)) {
+    $src = $src_match[1];
+    // Calculate preview image URL.
+    $preview_src = lazyload_get_preview_url($src);
+    if ($preview_src !== FALSE) {
+      // Replace src value with URL to the preview image and
+      // put original src into the 'data-lazyload-src' attribute.
+      $img_tag = str_replace('src="' . $src . '"', 'src="' . $preview_src . '"', $img_tag);
+      $img_tag = rtrim($img_tag, '/>') . ' data-lazyload-src="' . $src . '"/>';
+    }
+  }
+  // Regexp pattern that captures value of a 'class' attribute.
+  $reg_get_class = '#\bclass\s*=\s*["\']([^"\']*?)["\']#';
+  if (preg_match($reg_get_class, $img_tag, $class_match)) {
+    // Class attribute exists so add 'lazyload-item' to it.
+    $classes = $class_match[1];
+    // Check that 'lazyload-item' is not in the list of classes yet.
+    if (!preg_match('#\blazyload-item\b#', $classes)) {
+      // Add 'lazyload-item' to the attribute value.
+      $img_tag = preg_replace($reg_get_class, ' class="' . $classes . ' lazyload-item"', $img_tag);
+    }
+  }
+  else {
+    // There is no class attribute, so add one containing 'lazyload-item'.
+    $img_tag = rtrim($img_tag, '/>') . ' class="lazyload-item"/>';
   }
   return $img_tag;
 }
